@@ -43,7 +43,8 @@ contract MasterChef is Ownable {
         IBEP20 lpToken;           // Address of LP token contract.
         uint256 allocPoint;       // How many allocation points assigned to this pool. CAKEs to distribute per block.
         uint256 lastRewardBlock;  // Last block number that CAKEs distribution occurs.
-        uint256 accCakePerShare; // Accumulated CAKEs per share, times 1e12. See below.
+        uint256 accCakePerShare;  // Accumulated CAKEs per share, times 1e12. See below.
+        uint16 depositFeeBP;      // Deposit fee in  basic points
     }
 
     // The CAKE TOKEN!
@@ -56,6 +57,8 @@ contract MasterChef is Ownable {
     uint256 public cakePerBlock;
     // Bonus muliplier for early cake makers.
     uint256 public BONUS_MULTIPLIER = 1;
+    // Deposit fee address
+    address public feeAddress;
 
     // Info of each pool.
     PoolInfo[] public poolInfo;
@@ -65,6 +68,8 @@ contract MasterChef is Ownable {
     uint256 public totalAllocPoint = 0;
     // The block number when CAKE mining starts.
     uint256 public startBlock;
+    // Maximum deposit fee
+    uint16 constant public maxDepositFee = 420;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
@@ -82,17 +87,6 @@ contract MasterChef is Ownable {
         devaddr = _devaddr;
         cakePerBlock = _cakePerBlock;
         startBlock = _startBlock;
-
-        // staking pool
-        poolInfo.push(PoolInfo({
-            lpToken: _cake,
-            allocPoint: 1000,
-            lastRewardBlock: startBlock,
-            accCakePerShare: 0
-        }));
-
-        totalAllocPoint = 1000;
-
     }
 
     function updateMultiplier(uint256 multiplierNumber) public onlyOwner {
@@ -105,7 +99,8 @@ contract MasterChef is Ownable {
 
     // Add a new lp to the pool. Can only be called by the owner.
     // XXX DO NOT add the same LP token more than once. Rewards will be messed up if you do.
-    function add(uint256 _allocPoint, IBEP20 _lpToken, bool _withUpdate) public onlyOwner {
+    function add(uint256 _allocPoint, IBEP20 _lpToken, uint16 _depositFeeBP, bool _withUpdate) public onlyOwner {
+        require(_depositFeeBP <= maxDepositFee, "deposit fees exceed maximum");
         if (_withUpdate) {
             massUpdatePools();
         }
@@ -115,18 +110,21 @@ contract MasterChef is Ownable {
             lpToken: _lpToken,
             allocPoint: _allocPoint,
             lastRewardBlock: lastRewardBlock,
-            accCakePerShare: 0
+            accCakePerShare: 0,
+            depositFeeBP: _depositFeeBP
         }));
         updateStakingPool();
     }
 
     // Update the given pool's CAKE allocation point. Can only be called by the owner.
-    function set(uint256 _pid, uint256 _allocPoint, bool _withUpdate) public onlyOwner {
+    function set(uint256 _pid, uint256 _allocPoint, uint16 _depositFeeBP, bool _withUpdate) public onlyOwner {
+        require(_depositFeeBP <= maxDepositFee, "deposit fee exceed maximum");
         if (_withUpdate) {
             massUpdatePools();
         }
         uint256 prevAllocPoint = poolInfo[_pid].allocPoint;
         poolInfo[_pid].allocPoint = _allocPoint;
+        poolInfo[_pid].depositFeeBP = _depositFeeBP;
         if (prevAllocPoint != _allocPoint) {
             totalAllocPoint = totalAllocPoint.sub(prevAllocPoint).add(_allocPoint);
             updateStakingPool();
@@ -187,17 +185,15 @@ contract MasterChef is Ownable {
         }
         uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
         uint256 cakeReward = multiplier.mul(cakePerBlock).mul(pool.allocPoint).div(totalAllocPoint);
-        cake.mint(devaddr, cakeReward.div(10));
-        cake.mint(address(syrup), cakeReward);
+        // cake.mint(devaddr, cakeReward.div(10));
+        // minting is itegrated in token on https://github.com/polykiwi-finance/polykiwi-token
+        cake.mint(address(this), cakeReward);
         pool.accCakePerShare = pool.accCakePerShare.add(cakeReward.mul(1e12).div(lpSupply));
         pool.lastRewardBlock = block.number;
     }
 
     // Deposit LP tokens to MasterChef for CAKE allocation.
     function deposit(uint256 _pid, uint256 _amount) public {
-
-        require (_pid != 0, 'deposit CAKE by staking');
-
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         updatePool(_pid);
@@ -209,7 +205,14 @@ contract MasterChef is Ownable {
         }
         if (_amount > 0) {
             pool.lpToken.safeTransferFrom(address(msg.sender), address(this), _amount);
-            user.amount = user.amount.add(_amount);
+
+            if (pool.depositFeeBP > 0) {
+                uint256 depositFee = _amount.mul(pool.depositFeeBP).div(10000);
+                pool.lpToken.safeTransfer(feeAddress, depositFee);
+                user.amount = user.amount.add(_amount).sub(depositFee);
+            } else {
+                user.amount.add(_amount);
+            }
         }
         user.rewardDebt = user.amount.mul(pool.accCakePerShare).div(1e12);
         emit Deposit(msg.sender, _pid, _amount);
@@ -217,8 +220,6 @@ contract MasterChef is Ownable {
 
     // Withdraw LP tokens from MasterChef.
     function withdraw(uint256 _pid, uint256 _amount) public {
-
-        require (_pid != 0, 'withdraw CAKE by unstaking');
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount >= _amount, "withdraw: not good");
@@ -236,55 +237,14 @@ contract MasterChef is Ownable {
         emit Withdraw(msg.sender, _pid, _amount);
     }
 
-    // Stake CAKE tokens to MasterChef
-    function enterStaking(uint256 _amount) public {
-        PoolInfo storage pool = poolInfo[0];
-        UserInfo storage user = userInfo[0][msg.sender];
-        updatePool(0);
-        if (user.amount > 0) {
-            uint256 pending = user.amount.mul(pool.accCakePerShare).div(1e12).sub(user.rewardDebt);
-            if(pending > 0) {
-                safeCakeTransfer(msg.sender, pending);
-            }
-        }
-        if(_amount > 0) {
-            pool.lpToken.safeTransferFrom(address(msg.sender), address(this), _amount);
-            user.amount = user.amount.add(_amount);
-        }
-        user.rewardDebt = user.amount.mul(pool.accCakePerShare).div(1e12);
-
-        syrup.mint(msg.sender, _amount);
-        emit Deposit(msg.sender, 0, _amount);
-    }
-
-    // Withdraw CAKE tokens from STAKING.
-    function leaveStaking(uint256 _amount) public {
-        PoolInfo storage pool = poolInfo[0];
-        UserInfo storage user = userInfo[0][msg.sender];
-        require(user.amount >= _amount, "withdraw: not good");
-        updatePool(0);
-        uint256 pending = user.amount.mul(pool.accCakePerShare).div(1e12).sub(user.rewardDebt);
-        if(pending > 0) {
-            safeCakeTransfer(msg.sender, pending);
-        }
-        if(_amount > 0) {
-            user.amount = user.amount.sub(_amount);
-            pool.lpToken.safeTransfer(address(msg.sender), _amount);
-        }
-        user.rewardDebt = user.amount.mul(pool.accCakePerShare).div(1e12);
-
-        syrup.burn(msg.sender, _amount);
-        emit Withdraw(msg.sender, 0, _amount);
-    }
-
     // Withdraw without caring about rewards. EMERGENCY ONLY.
     function emergencyWithdraw(uint256 _pid) public {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
-        pool.lpToken.safeTransfer(address(msg.sender), user.amount);
-        emit EmergencyWithdraw(msg.sender, _pid, user.amount);
         user.amount = 0;
         user.rewardDebt = 0;
+        pool.lpToken.safeTransfer(address(msg.sender), user.amount);
+        emit EmergencyWithdraw(msg.sender, _pid, user.amount);
     }
 
     // Safe cake transfer function, just in case if rounding error causes pool to not have enough CAKEs.
@@ -296,5 +256,10 @@ contract MasterChef is Ownable {
     function dev(address _devaddr) public {
         require(msg.sender == devaddr, "dev: wut?");
         devaddr = _devaddr;
+    }
+
+    function setFeeAddress(address _feeAddress) public {
+        require(msg.sender == feeAddress, "setFeeAddress: FORBIDDEN");
+        feeAddress = _feeAddress;
     }
 }
