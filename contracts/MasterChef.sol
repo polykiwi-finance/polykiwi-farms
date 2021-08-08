@@ -4,9 +4,7 @@ import '@pancakeswap/pancake-swap-lib/contracts/math/SafeMath.sol';
 import '@pancakeswap/pancake-swap-lib/contracts/token/BEP20/IBEP20.sol';
 import '@pancakeswap/pancake-swap-lib/contracts/token/BEP20/SafeBEP20.sol';
 import '@pancakeswap/pancake-swap-lib/contracts/access/Ownable.sol';
-
-import "./CakeToken.sol";
-import "./SyrupBar.sol";
+import './libs/IERC20.sol';
 
 // import "@nomiclabs/buidler/console.sol";
 
@@ -48,9 +46,7 @@ contract MasterChef is Ownable {
     }
 
     // The CAKE TOKEN!
-    CakeToken public cake;
-    // The SYRUP TOKEN!
-    SyrupBar public syrup;
+    IERC20 public cake;
     // Dev address.
     address public devaddr;
     // CAKE tokens created per block.
@@ -76,14 +72,12 @@ contract MasterChef is Ownable {
     event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
 
     constructor(
-        CakeToken _cake,
-        SyrupBar _syrup,
+        IERC20 _cake,
         address _devaddr,
         uint256 _cakePerBlock,
         uint256 _startBlock
     ) public {
         cake = _cake;
-        syrup = _syrup;
         devaddr = _devaddr;
         cakePerBlock = _cakePerBlock;
         startBlock = _startBlock;
@@ -249,7 +243,12 @@ contract MasterChef is Ownable {
 
     // Safe cake transfer function, just in case if rounding error causes pool to not have enough CAKEs.
     function safeCakeTransfer(address _to, uint256 _amount) internal {
-        syrup.safeCakeTransfer(_to, _amount);
+        uint256 cakeBal = cake.balanceOf(address(this));
+        if (_amount > cakeBal) {
+            cake.transfer(_to, cakeBal);
+        } else {
+            cake.transfer(_to, _amount);
+        }
     }
 
     // Update dev address by the previous dev.
@@ -261,5 +260,10 @@ contract MasterChef is Ownable {
     function setFeeAddress(address _feeAddress) public {
         require(msg.sender == feeAddress, "setFeeAddress: FORBIDDEN");
         feeAddress = _feeAddress;
+    }
+
+    function updateEmissionRate(uint256 _cakePerBlock) public onlyOwner {
+        massUpdatePools();
+        cakePerBlock = _cakePerBlock;
     }
 }
