@@ -4,6 +4,7 @@ import '@pancakeswap/pancake-swap-lib/contracts/math/SafeMath.sol';
 import '@pancakeswap/pancake-swap-lib/contracts/token/BEP20/IBEP20.sol';
 import '@pancakeswap/pancake-swap-lib/contracts/token/BEP20/SafeBEP20.sol';
 import '@pancakeswap/pancake-swap-lib/contracts/access/Ownable.sol';
+import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import './libs/IERC20.sol';
 
 // import "@nomiclabs/buidler/console.sol";
@@ -15,7 +16,7 @@ import './libs/IERC20.sol';
 // distributed and the community can show to govern itself.
 //
 // Have fun reading it. Hopefully it's bug-free. God bless.
-contract MasterChef is Ownable {
+contract MasterChef is Ownable, ReentrancyGuard {
     using SafeMath for uint256;
     using SafeBEP20 for IBEP20;
 
@@ -47,8 +48,6 @@ contract MasterChef is Ownable {
 
     // The CAKE TOKEN!
     IERC20 public cake;
-    // Dev address.
-    address public devaddr;
     // CAKE tokens created per block.
     uint256 public cakePerBlock;
     // Bonus muliplier for early cake makers.
@@ -64,28 +63,30 @@ contract MasterChef is Ownable {
     uint256 public totalAllocPoint = 0;
     // The block number when CAKE mining starts.
     uint256 public startBlock;
+    bool public referralStatus = true;
     // Maximum deposit fee
     uint16 constant public maxDepositFee = 420;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
+    event ReferralPayment(address indexed receiver, address giver, uint amount);
 
     constructor(
         IERC20 _cake,
-        address _devaddr,
+        address _feeAddress,
         uint256 _cakePerBlock,
         uint256 _startBlock
     ) public {
         cake = _cake;
-        devaddr = _devaddr;
         cakePerBlock = _cakePerBlock;
         startBlock = _startBlock;
+        feeAddress= _feeAddress;
     }
 
-    function updateMultiplier(uint256 multiplierNumber) public onlyOwner {
-        BONUS_MULTIPLIER = multiplierNumber;
-    }
+    //function updateMultiplier(uint256 multiplierNumber) public onlyOwner {
+    //    BONUS_MULTIPLIER = multiplierNumber;
+    //}
 
     function poolLength() external view returns (uint256) {
         return poolInfo.length;
@@ -107,7 +108,6 @@ contract MasterChef is Ownable {
             accCakePerShare: 0,
             depositFeeBP: _depositFeeBP
         }));
-        updateStakingPool();
     }
 
     // Update the given pool's CAKE allocation point. Can only be called by the owner.
@@ -121,20 +121,6 @@ contract MasterChef is Ownable {
         poolInfo[_pid].depositFeeBP = _depositFeeBP;
         if (prevAllocPoint != _allocPoint) {
             totalAllocPoint = totalAllocPoint.sub(prevAllocPoint).add(_allocPoint);
-            updateStakingPool();
-        }
-    }
-
-    function updateStakingPool() internal {
-        uint256 length = poolInfo.length;
-        uint256 points = 0;
-        for (uint256 pid = 1; pid < length; ++pid) {
-            points = points.add(poolInfo[pid].allocPoint);
-        }
-        if (points != 0) {
-            points = points.div(3);
-            totalAllocPoint = totalAllocPoint.sub(poolInfo[0].allocPoint).add(points);
-            poolInfo[0].allocPoint = points;
         }
     }
 
@@ -173,7 +159,7 @@ contract MasterChef is Ownable {
             return;
         }
         uint256 lpSupply = pool.lpToken.balanceOf(address(this));
-        if (lpSupply == 0) {
+        if (lpSupply == 0 || pool.allocPoint == 0) {
             pool.lastRewardBlock = block.number;
             return;
         }
@@ -187,7 +173,7 @@ contract MasterChef is Ownable {
     }
 
     // Deposit LP tokens to MasterChef for CAKE allocation.
-    function deposit(uint256 _pid, uint256 _amount) public {
+    function deposit(uint256 _pid, uint256 _amount, address referral) public nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         updatePool(_pid);
@@ -195,6 +181,8 @@ contract MasterChef is Ownable {
             uint256 pending = user.amount.mul(pool.accCakePerShare).div(1e12).sub(user.rewardDebt);
             if(pending > 0) {
                 safeCakeTransfer(msg.sender, pending);
+
+                payReferral(referral, pending);
             }
         }
         if (_amount > 0) {
@@ -213,7 +201,7 @@ contract MasterChef is Ownable {
     }
 
     // Withdraw LP tokens from MasterChef.
-    function withdraw(uint256 _pid, uint256 _amount) public {
+    function withdraw(uint256 _pid, uint256 _amount, address referral) public nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount >= _amount, "withdraw: not good");
@@ -222,6 +210,8 @@ contract MasterChef is Ownable {
         uint256 pending = user.amount.mul(pool.accCakePerShare).div(1e12).sub(user.rewardDebt);
         if(pending > 0) {
             safeCakeTransfer(msg.sender, pending);
+
+            payReferral(referral, pending);
         }
         if(_amount > 0) {
             user.amount = user.amount.sub(_amount);
@@ -231,8 +221,17 @@ contract MasterChef is Ownable {
         emit Withdraw(msg.sender, _pid, _amount);
     }
 
+    function payReferral (address referral, uint amount) internal {
+        if (referral != address(0) && referralStatus) {
+            amount = amount / 40; // 2.5%
+
+            cake.transferFrom(feeAddress, referral, amount);
+            emit ReferralPayment(referral, msg.sender, amount);
+        }
+    }
+
     // Withdraw without caring about rewards. EMERGENCY ONLY.
-    function emergencyWithdraw(uint256 _pid) public {
+    function emergencyWithdraw(uint256 _pid) public nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         user.amount = 0;
@@ -244,17 +243,13 @@ contract MasterChef is Ownable {
     // Safe cake transfer function, just in case if rounding error causes pool to not have enough CAKEs.
     function safeCakeTransfer(address _to, uint256 _amount) internal {
         uint256 cakeBal = cake.balanceOf(address(this));
+        bool transferSuccess = false;
         if (_amount > cakeBal) {
-            cake.transfer(_to, cakeBal);
+            transferSuccess = cake.transfer(_to, cakeBal);
         } else {
-            cake.transfer(_to, _amount);
+            transferSuccess = cake.transfer(_to, _amount);
         }
-    }
-
-    // Update dev address by the previous dev.
-    function dev(address _devaddr) public {
-        require(msg.sender == devaddr, "dev: wut?");
-        devaddr = _devaddr;
+        require(transferSuccess, "safeCakeTransfer: Transfer failed");
     }
 
     function setFeeAddress(address _feeAddress) public {
@@ -265,5 +260,9 @@ contract MasterChef is Ownable {
     function updateEmissionRate(uint256 _cakePerBlock) public onlyOwner {
         massUpdatePools();
         cakePerBlock = _cakePerBlock;
+    }
+
+    function toggleReferrals () public onlyOwner {
+        referralStatus = !referralStatus;
     }
 }
