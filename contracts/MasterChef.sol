@@ -230,7 +230,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         if (referral != address(0) && referralStatus) {
             amount = amount / 40; // 2.5%
 
-            cake.transferFrom(feeAddress, referral, amount);
+            cake.mint(referral, amount);
             emit ReferralPayment(referral, msg.sender, amount);
         }
     }
