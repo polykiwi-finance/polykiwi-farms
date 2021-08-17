@@ -176,6 +176,11 @@ contract MasterChef is Ownable, ReentrancyGuard {
     function deposit(uint256 _pid, uint256 _amount, address referral) public nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
+
+        uint256 balanceBefore = pool.lpToken.balanceOf(address(this));
+        pool.lpToken.transferFrom(msg.sender, address(this), _amount);
+        _amount = pool.lpToken.balanceOf(address(this)).sub(balanceBefore);
+
         updatePool(_pid);
         if (user.amount > 0) {
             uint256 pending = user.amount.mul(pool.accCakePerShare).div(1e12).sub(user.rewardDebt);
