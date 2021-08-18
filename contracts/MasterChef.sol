@@ -142,7 +142,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         UserInfo storage user = userInfo[_pid][_user];
         uint256 accCakePerShare = pool.accCakePerShare;
         uint256 lpSupply = pool.lpToken.balanceOf(address(this));
-        if (block.number > pool.lastRewardBlock && lpSupply != 0) {
+        if (block.number > pool.lastRewardBlock && lpSupply != 0 && totalAllocPoint > 0) {
             uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
             uint256 cakeReward = multiplier.mul(cakePerBlock).mul(pool.allocPoint).div(totalAllocPoint);
             accCakePerShare = accCakePerShare.add(cakeReward.mul(1e12).div(lpSupply));
