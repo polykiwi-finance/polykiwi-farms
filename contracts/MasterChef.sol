@@ -266,6 +266,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
 
     function setFeeAddress(address _feeAddress) public {
         require(msg.sender == feeAddress, "setFeeAddress: FORBIDDEN");
+        require(_feeAddress != address(0), "!nonzero");
         feeAddress = _feeAddress;
     }
 
