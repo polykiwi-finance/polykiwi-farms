@@ -168,7 +168,6 @@ contract MasterChef is Ownable, ReentrancyGuard {
         }
         uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
         uint256 cakeReward = multiplier.mul(cakePerBlock).mul(pool.allocPoint).div(totalAllocPoint);
-        // cake.mint(devaddr, cakeReward.div(10));
         // minting is itegrated in token on https://github.com/polykiwi-finance/polykiwi-token
         cake.mint(address(this), cakeReward);
         pool.accCakePerShare = pool.accCakePerShare.add(cakeReward.mul(1e18).div(lpSupply));
