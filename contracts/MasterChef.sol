@@ -50,8 +50,6 @@ contract MasterChef is Ownable, ReentrancyGuard {
     IERC20 public cake;
     // CAKE tokens created per block.
     uint256 public cakePerBlock;
-    // Bonus muliplier for early cake makers.
-    uint256 public BONUS_MULTIPLIER = 1;
     // Deposit fee address
     address public feeAddress;
 
@@ -85,10 +83,6 @@ contract MasterChef is Ownable, ReentrancyGuard {
         startBlock = _startBlock;
         feeAddress= _feeAddress;
     }
-
-    //function updateMultiplier(uint256 multiplierNumber) public onlyOwner {
-    //    BONUS_MULTIPLIER = multiplierNumber;
-    //}
 
     modifier nonDuplicated (IBEP20 _lpToken) {
         require(poolExistence[address(_lpToken)] == false, "nonDuplicated: duplicated");
@@ -135,7 +129,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
 
     // Return reward multiplier over the given _from to _to block.
     function getMultiplier(uint256 _from, uint256 _to) public view returns (uint256) {
-        return _to.sub(_from).mul(BONUS_MULTIPLIER);
+        return _to.sub(_from);
     }
 
     // View function to see pending CAKEs on frontend.
