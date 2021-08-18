@@ -67,6 +67,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
     bool public referralStatus = true;
     // Maximum deposit fee
     uint16 constant public maxDepositFee = 420;
+    uint256 constant public MAX_EMISSION_RATE = 200000000000000;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
@@ -272,6 +273,8 @@ contract MasterChef is Ownable, ReentrancyGuard {
     }
 
     function updateEmissionRate(uint256 _cakePerBlock) public onlyOwner {
+        require(_cakePerBlock <= MAX_EMISSION_RATE, "Emission rate too high");
+
         massUpdatePools();
         cakePerBlock = _cakePerBlock;
     }
