@@ -95,7 +95,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
 
     // Add a new lp to the pool. Can only be called by the owner.
     // XXX DO NOT add the same LP token more than once. Rewards will be messed up if you do.
-    function add(uint256 _allocPoint, IBEP20 _lpToken, uint16 _depositFeeBP, bool _withUpdate) public onlyOwner nonDuplicated(_lpToken) {
+    function add(uint256 _allocPoint, IBEP20 _lpToken, uint16 _depositFeeBP, bool _withUpdate) public external onlyOwner nonDuplicated(_lpToken) {
         require(_depositFeeBP <= maxDepositFee, "deposit fees exceed maximum");
         if (_withUpdate) {
             massUpdatePools();
@@ -114,7 +114,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
     }
 
     // Update the given pool's CAKE allocation point. Can only be called by the owner.
-    function set(uint256 _pid, uint256 _allocPoint, uint16 _depositFeeBP, bool _withUpdate) public onlyOwner {
+    function set(uint256 _pid, uint256 _allocPoint, uint16 _depositFeeBP, bool _withUpdate) public external onlyOwner {
         require(_depositFeeBP <= maxDepositFee, "deposit fee exceed maximum");
         if (_withUpdate) {
             massUpdatePools();
@@ -175,7 +175,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
     }
 
     // Deposit LP tokens to MasterChef for CAKE allocation.
-    function deposit(uint256 _pid, uint256 _amount, address referral) public nonReentrant {
+    function deposit(uint256 _pid, uint256 _amount, address referral) public external nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
 
@@ -208,7 +208,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
     }
 
     // Withdraw LP tokens from MasterChef.
-    function withdraw(uint256 _pid, uint256 _amount, address referral) public nonReentrant {
+    function withdraw(uint256 _pid, uint256 _amount, address referral) public external nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(user.amount >= _amount, "withdraw: not good");
@@ -238,7 +238,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
     }
 
     // Withdraw without caring about rewards. EMERGENCY ONLY.
-    function emergencyWithdraw(uint256 _pid) public nonReentrant {
+    function emergencyWithdraw(uint256 _pid) public external nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         user.amount = 0;
@@ -259,20 +259,20 @@ contract MasterChef is Ownable, ReentrancyGuard {
         require(transferSuccess, "safeCakeTransfer: Transfer failed");
     }
 
-    function setFeeAddress(address _feeAddress) public {
+    function setFeeAddress(address _feeAddress) public external {
         require(msg.sender == feeAddress, "setFeeAddress: FORBIDDEN");
         require(_feeAddress != address(0), "!nonzero");
         feeAddress = _feeAddress;
     }
 
-    function updateEmissionRate(uint256 _cakePerBlock) public onlyOwner {
+    function updateEmissionRate(uint256 _cakePerBlock) public external onlyOwner {
         require(_cakePerBlock <= MAX_EMISSION_RATE, "Emission rate too high");
 
         massUpdatePools();
         cakePerBlock = _cakePerBlock;
     }
 
-    function toggleReferrals () public onlyOwner {
+    function toggleReferrals () public external onlyOwner {
         referralStatus = !referralStatus;
     }
 }
