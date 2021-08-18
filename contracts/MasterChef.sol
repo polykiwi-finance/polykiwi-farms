@@ -71,6 +71,12 @@ contract MasterChef is Ownable, ReentrancyGuard {
     event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event EmergencyWithdraw(address indexed user, uint256 indexed pid, uint256 amount);
     event ReferralPayment(address indexed receiver, address giver, uint amount);
+    event AddedPool(uint256 allocPoint, address lpToken, uint16 depositFeeBP);
+    event AlteredPool(uint256 pid, uint256 allocPoint, uint16 depositFeeBP);
+    event FeeAddressChanged(address newFeeAddress);
+    event EmissionRateUpdated(uint newEmissionRate);
+    event ReferralStatusToggled(bool newReferralStatus);
+    
 
     constructor(
         IERC20 _cake,
@@ -111,6 +117,8 @@ contract MasterChef is Ownable, ReentrancyGuard {
             accCakePerShare: 0,
             depositFeeBP: _depositFeeBP
         }));
+
+        emit AddedPool (_allocPoint, address(_lpToken), _depositFeeBP);
     }
 
     // Update the given pool's CAKE allocation point. Can only be called by the owner.
@@ -125,6 +133,8 @@ contract MasterChef is Ownable, ReentrancyGuard {
         if (prevAllocPoint != _allocPoint) {
             totalAllocPoint = totalAllocPoint.sub(prevAllocPoint).add(_allocPoint);
         }
+
+        emit AlteredPool(_pid, _allocPoint, _depositFeeBP);
     }
 
     // Return reward multiplier over the given _from to _to block.
@@ -263,6 +273,8 @@ contract MasterChef is Ownable, ReentrancyGuard {
         require(msg.sender == feeAddress, "setFeeAddress: FORBIDDEN");
         require(_feeAddress != address(0), "!nonzero");
         feeAddress = _feeAddress;
+
+        emit FeeAddressChanged(_feeAddress);
     }
 
     function updateEmissionRate(uint256 _cakePerBlock) public external onlyOwner {
@@ -270,9 +282,13 @@ contract MasterChef is Ownable, ReentrancyGuard {
 
         massUpdatePools();
         cakePerBlock = _cakePerBlock;
+
+        emit EmissionRateUpdated(_cakePerBlock);
     }
 
     function toggleReferrals () public external onlyOwner {
         referralStatus = !referralStatus;
+
+        emit ReferralStatusToggled(referralStatus);
     }
 }
