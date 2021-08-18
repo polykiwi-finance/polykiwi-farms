@@ -47,7 +47,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
     }
 
     // The CAKE TOKEN!
-    IERC20 public cake;
+    IERC20 public immutable cake;
     // CAKE tokens created per block.
     uint256 public cakePerBlock;
     // Deposit fee address
@@ -61,7 +61,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
     // Total allocation points. Must be the sum of all allocation points in all pools.
     uint256 public totalAllocPoint = 0;
     // The block number when CAKE mining starts.
-    uint256 public startBlock;
+    uint256 public immutable startBlock;
     bool public referralStatus = true;
     // Maximum deposit fee
     uint16 constant public maxDepositFee = 420;
@@ -103,7 +103,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         _lpToken.balanceOf(address(this));
         uint256 lastRewardBlock = block.number > startBlock ? block.number : startBlock;
         totalAllocPoint = totalAllocPoint.add(_allocPoint);
-        poolExistence[_lpToken] = true;
+        poolExistence[address(_lpToken)] = true;
         poolInfo.push(PoolInfo({
             lpToken: _lpToken,
             allocPoint: _allocPoint,
