@@ -42,7 +42,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         IBEP20 lpToken;           // Address of LP token contract.
         uint256 allocPoint;       // How many allocation points assigned to this pool. CAKEs to distribute per block.
         uint256 lastRewardBlock;  // Last block number that CAKEs distribution occurs.
-        uint256 accCakePerShare;  // Accumulated CAKEs per share, times 1e12. See below.
+        uint256 accCakePerShare;  // Accumulated CAKEs per share, times 1e18. See below.
         uint16 depositFeeBP;      // Deposit fee in  basic points
     }
 
@@ -141,9 +141,9 @@ contract MasterChef is Ownable, ReentrancyGuard {
         if (block.number > pool.lastRewardBlock && lpSupply != 0 && totalAllocPoint > 0) {
             uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
             uint256 cakeReward = multiplier.mul(cakePerBlock).mul(pool.allocPoint).div(totalAllocPoint);
-            accCakePerShare = accCakePerShare.add(cakeReward.mul(1e12).div(lpSupply));
+            accCakePerShare = accCakePerShare.add(cakeReward.mul(1e18).div(lpSupply));
         }
-        return user.amount.mul(accCakePerShare).div(1e12).sub(user.rewardDebt);
+        return user.amount.mul(accCakePerShare).div(1e18).sub(user.rewardDebt);
     }
 
     // Update reward variables for all pools. Be careful of gas spending!
@@ -171,7 +171,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         // cake.mint(devaddr, cakeReward.div(10));
         // minting is itegrated in token on https://github.com/polykiwi-finance/polykiwi-token
         cake.mint(address(this), cakeReward);
-        pool.accCakePerShare = pool.accCakePerShare.add(cakeReward.mul(1e12).div(lpSupply));
+        pool.accCakePerShare = pool.accCakePerShare.add(cakeReward.mul(1e18).div(lpSupply));
         pool.lastRewardBlock = block.number;
     }
 
@@ -186,7 +186,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
 
         updatePool(_pid);
         if (user.amount > 0) {
-            uint256 pending = user.amount.mul(pool.accCakePerShare).div(1e12).sub(user.rewardDebt);
+            uint256 pending = user.amount.mul(pool.accCakePerShare).div(1e18).sub(user.rewardDebt);
             if(pending > 0) {
                 safeCakeTransfer(msg.sender, pending);
 
@@ -204,7 +204,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
                 user.amount.add(_amount);
             }
         }
-        user.rewardDebt = user.amount.mul(pool.accCakePerShare).div(1e12);
+        user.rewardDebt = user.amount.mul(pool.accCakePerShare).div(1e18);
         emit Deposit(msg.sender, _pid, _amount);
     }
 
@@ -215,7 +215,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         require(user.amount >= _amount, "withdraw: not good");
 
         updatePool(_pid);
-        uint256 pending = user.amount.mul(pool.accCakePerShare).div(1e12).sub(user.rewardDebt);
+        uint256 pending = user.amount.mul(pool.accCakePerShare).div(1e18).sub(user.rewardDebt);
         if(pending > 0) {
             safeCakeTransfer(msg.sender, pending);
 
@@ -225,7 +225,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
             user.amount = user.amount.sub(_amount);
             pool.lpToken.safeTransfer(address(msg.sender), _amount);
         }
-        user.rewardDebt = user.amount.mul(pool.accCakePerShare).div(1e12);
+        user.rewardDebt = user.amount.mul(pool.accCakePerShare).div(1e18);
         emit Withdraw(msg.sender, _pid, _amount);
     }
 
