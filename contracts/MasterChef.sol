@@ -1,15 +1,15 @@
 pragma solidity 0.6.12;
 
-import '@pancakeswap/pancake-swap-lib/contracts/math/SafeMath.sol';
-import '@pancakeswap/pancake-swap-lib/contracts/token/BEP20/IBEP20.sol';
-import '@pancakeswap/pancake-swap-lib/contracts/token/BEP20/SafeBEP20.sol';
-import '@pancakeswap/pancake-swap-lib/contracts/access/Ownable.sol';
+import '@pankiwiswap/pankiwi-swap-lib/contracts/math/SafeMath.sol';
+import '@pankiwiswap/pankiwi-swap-lib/contracts/token/BEP20/IBEP20.sol';
+import '@pankiwiswap/pankiwi-swap-lib/contracts/token/BEP20/SafeBEP20.sol';
+import '@pankiwiswap/pankiwi-swap-lib/contracts/access/Ownable.sol';
 import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import './libs/IERC20.sol';
 
 // import "@nomiclabs/buidler/console.sol";
 
-// MasterChef is the master of Cake. He can make Cake and he is a fair guy.
+// MasterChef is the master of Kiwi. He can make Kiwi and he is a fair guy.
 //
 // Note that it's ownable and the owner wields tremendous power. The ownership
 // will be transferred to a governance smart contract once CAKE is sufficiently
@@ -28,10 +28,10 @@ contract MasterChef is Ownable, ReentrancyGuard {
         // We do some fancy math here. Basically, any point in time, the amount of CAKEs
         // entitled to a user but is pending to be distributed is:
         //
-        //   pending reward = (user.amount * pool.accCakePerShare) - user.rewardDebt
+        //   pending reward = (user.amount * pool.accKiwiPerShare) - user.rewardDebt
         //
         // Whenever a user deposits or withdraws LP tokens to a pool. Here's what happens:
-        //   1. The pool's `accCakePerShare` (and `lastRewardBlock`) gets updated.
+        //   1. The pool's `accKiwiPerShare` (and `lastRewardBlock`) gets updated.
         //   2. User receives the pending reward sent to his/her address.
         //   3. User's `amount` gets updated.
         //   4. User's `rewardDebt` gets updated.
@@ -42,15 +42,15 @@ contract MasterChef is Ownable, ReentrancyGuard {
         IBEP20 lpToken;           // Address of LP token contract.
         uint256 allocPoint;       // How many allocation points assigned to this pool. CAKEs to distribute per block.
         uint256 lastRewardBlock;  // Last block number that CAKEs distribution occurs.
-        uint256 accCakePerShare;  // Accumulated CAKEs per share, times 1e18. See below.
+        uint256 accKiwiPerShare;  // Accumulated CAKEs per share, times 1e18. See below.
         uint16 depositFeeBP;      // Deposit fee in  basic points
         uint256 lpSupply;         // Total lp locked in pool
     }
 
     // The CAKE TOKEN!
-    IERC20 public immutable cake;
+    IERC20 public immutable kiwi;
     // CAKE tokens created per block.
-    uint256 public cakePerBlock;
+    uint256 public kiwiPerBlock;
     // Deposit fee address
     address public feeAddress;
 
@@ -80,13 +80,13 @@ contract MasterChef is Ownable, ReentrancyGuard {
     
 
     constructor(
-        IERC20 _cake,
+        IERC20 _kiwi,
         address _feeAddress,
-        uint256 _cakePerBlock,
+        uint256 _kiwiPerBlock,
         uint256 _startBlock
     ) public {
-        cake = _cake;
-        cakePerBlock = _cakePerBlock;
+        kiwi = _kiwi;
+        kiwiPerBlock = _kiwiPerBlock;
         startBlock = _startBlock;
         feeAddress = _feeAddress;
     }
@@ -115,7 +115,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
             lpToken: _lpToken,
             allocPoint: _allocPoint,
             lastRewardBlock: lastRewardBlock,
-            accCakePerShare: 0,
+            accKiwiPerShare: 0,
             depositFeeBP: _depositFeeBP,
             lpSupply: 0
         }));
@@ -145,17 +145,17 @@ contract MasterChef is Ownable, ReentrancyGuard {
     }
 
     // View function to see pending CAKEs on frontend.
-    function pendingCake(uint256 _pid, address _user) external view returns (uint256) {
+    function pendingKiwi(uint256 _pid, address _user) external view returns (uint256) {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
-        uint256 accCakePerShare = pool.accCakePerShare;
+        uint256 accKiwiPerShare = pool.accKiwiPerShare;
 
         if (block.number > pool.lastRewardBlock && pool.lpSupply != 0 && totalAllocPoint > 0) {
             uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
-            uint256 cakeReward = multiplier.mul(cakePerBlock).mul(pool.allocPoint).div(totalAllocPoint);
-            accCakePerShare = accCakePerShare.add(cakeReward.mul(1e18).div(pool.lpSupply));
+            uint256 kiwiReward = multiplier.mul(kiwiPerBlock).mul(pool.allocPoint).div(totalAllocPoint);
+            accKiwiPerShare = accKiwiPerShare.add(kiwiReward.mul(1e18).div(pool.lpSupply));
         }
-        return user.amount.mul(accCakePerShare).div(1e18).sub(user.rewardDebt);
+        return user.amount.mul(accKiwiPerShare).div(1e18).sub(user.rewardDebt);
     }
 
     // Update reward variables for all pools. Be careful of gas spending!
@@ -178,10 +178,10 @@ contract MasterChef is Ownable, ReentrancyGuard {
             return;
         }
         uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
-        uint256 cakeReward = multiplier.mul(cakePerBlock).mul(pool.allocPoint).div(totalAllocPoint);
+        uint256 kiwiReward = multiplier.mul(kiwiPerBlock).mul(pool.allocPoint).div(totalAllocPoint);
         // minting is itegrated in token on https://github.com/polykiwi-finance/polykiwi-token
-        cake.mint(address(this), cakeReward);
-        pool.accCakePerShare = pool.accCakePerShare.add(cakeReward.mul(1e18).div(pool.lpSupply));
+        kiwi.mint(address(this), kiwiReward);
+        pool.accKiwiPerShare = pool.accKiwiPerShare.add(kiwiReward.mul(1e18).div(pool.lpSupply));
         pool.lastRewardBlock = block.number;
     }
 
@@ -196,9 +196,9 @@ contract MasterChef is Ownable, ReentrancyGuard {
 
         updatePool(_pid);
         if (user.amount > 0) {
-            uint256 pending = user.amount.mul(pool.accCakePerShare).div(1e18).sub(user.rewardDebt);
+            uint256 pending = user.amount.mul(pool.accKiwiPerShare).div(1e18).sub(user.rewardDebt);
             if(pending > 0) {
-                safeCakeTransfer(msg.sender, pending);
+                safeKiwiTransfer(msg.sender, pending);
 
                 payReferral(referral, pending);
             }
@@ -216,7 +216,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
                 pool.lpSupply = pool.lpSupply.add(_amount);
             }
         }
-        user.rewardDebt = user.amount.mul(pool.accCakePerShare).div(1e18);
+        user.rewardDebt = user.amount.mul(pool.accKiwiPerShare).div(1e18);
         emit Deposit(msg.sender, _pid, _amount);
     }
 
@@ -227,9 +227,9 @@ contract MasterChef is Ownable, ReentrancyGuard {
         require(user.amount >= _amount, "withdraw: not good");
 
         updatePool(_pid);
-        uint256 pending = user.amount.mul(pool.accCakePerShare).div(1e18).sub(user.rewardDebt);
+        uint256 pending = user.amount.mul(pool.accKiwiPerShare).div(1e18).sub(user.rewardDebt);
         if(pending > 0) {
-            safeCakeTransfer(msg.sender, pending);
+            safeKiwiTransfer(msg.sender, pending);
 
             payReferral(referral, pending);
         }
@@ -238,7 +238,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
             pool.lpToken.safeTransfer(address(msg.sender), _amount);
             pool.lpSupply = pool.lpSupply.sub(_amount);
         }
-        user.rewardDebt = user.amount.mul(pool.accCakePerShare).div(1e18);
+        user.rewardDebt = user.amount.mul(pool.accKiwiPerShare).div(1e18);
         emit Withdraw(msg.sender, _pid, _amount);
     }
 
@@ -246,7 +246,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         if (referral != address(0) && referralStatus) {
             amount = amount / 40; // 2.5%
 
-            cake.mint(referral, amount);
+            kiwi.mint(referral, amount);
             emit ReferralPayment(referral, msg.sender, amount);
         }
     }
@@ -265,16 +265,16 @@ contract MasterChef is Ownable, ReentrancyGuard {
         emit EmergencyWithdraw(msg.sender, _pid, user.amount);
     }
 
-    // Safe cake transfer function, just in case if rounding error causes pool to not have enough CAKEs.
-    function safeCakeTransfer(address _to, uint256 _amount) internal {
-        uint256 cakeBal = cake.balanceOf(address(this));
+    // Safe kiwi transfer function, just in case if rounding error causes pool to not have enough CAKEs.
+    function safeKiwiTransfer(address _to, uint256 _amount) internal {
+        uint256 kiwiBal = kiwi.balanceOf(address(this));
         bool transferSuccess = false;
-        if (_amount > cakeBal) {
-            transferSuccess = cake.transfer(_to, cakeBal);
+        if (_amount > kiwiBal) {
+            transferSuccess = kiwi.transfer(_to, kiwiBal);
         } else {
-            transferSuccess = cake.transfer(_to, _amount);
+            transferSuccess = kiwi.transfer(_to, _amount);
         }
-        require(transferSuccess, "safeCakeTransfer: Transfer failed");
+        require(transferSuccess, "safeKiwiTransfer: Transfer failed");
     }
 
     function setFeeAddress(address _feeAddress) external {
@@ -285,13 +285,13 @@ contract MasterChef is Ownable, ReentrancyGuard {
         emit FeeAddressChanged(_feeAddress);
     }
 
-    function updateEmissionRate(uint256 _cakePerBlock) external onlyOwner {
-        require(_cakePerBlock <= MAX_EMISSION_RATE, "Emission rate too high");
+    function updateEmissionRate(uint256 _kiwiPerBlock) external onlyOwner {
+        require(_kiwiPerBlock <= MAX_EMISSION_RATE, "Emission rate too high");
 
         massUpdatePools();
-        cakePerBlock = _cakePerBlock;
+        kiwiPerBlock = _kiwiPerBlock;
 
-        emit EmissionRateUpdated(_cakePerBlock);
+        emit EmissionRateUpdated(_kiwiPerBlock);
     }
 
     function toggleReferrals () external onlyOwner {
