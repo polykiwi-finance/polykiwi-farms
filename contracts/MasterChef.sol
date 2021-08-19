@@ -44,6 +44,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         uint256 lastRewardBlock;  // Last block number that CAKEs distribution occurs.
         uint256 accCakePerShare;  // Accumulated CAKEs per share, times 1e18. See below.
         uint16 depositFeeBP;      // Deposit fee in  basic points
+        uint256 lpSupply;         // Total lp locked in pool
     }
 
     // The CAKE TOKEN!
@@ -87,7 +88,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         cake = _cake;
         cakePerBlock = _cakePerBlock;
         startBlock = _startBlock;
-        feeAddress= _feeAddress;
+        feeAddress = _feeAddress;
     }
 
     modifier nonDuplicated (IBEP20 _lpToken) {
@@ -115,7 +116,8 @@ contract MasterChef is Ownable, ReentrancyGuard {
             allocPoint: _allocPoint,
             lastRewardBlock: lastRewardBlock,
             accCakePerShare: 0,
-            depositFeeBP: _depositFeeBP
+            depositFeeBP: _depositFeeBP,
+            lpSupply: 0
         }));
 
         emit AddedPool (_allocPoint, address(_lpToken), _depositFeeBP);
@@ -147,11 +149,11 @@ contract MasterChef is Ownable, ReentrancyGuard {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
         uint256 accCakePerShare = pool.accCakePerShare;
-        uint256 lpSupply = pool.lpToken.balanceOf(address(this));
-        if (block.number > pool.lastRewardBlock && lpSupply != 0 && totalAllocPoint > 0) {
+
+        if (block.number > pool.lastRewardBlock && pool.lpSupply != 0 && totalAllocPoint > 0) {
             uint256 multiplier = getMultiplier(pool.lastRewardBlock, block.number);
             uint256 cakeReward = multiplier.mul(cakePerBlock).mul(pool.allocPoint).div(totalAllocPoint);
-            accCakePerShare = accCakePerShare.add(cakeReward.mul(1e18).div(lpSupply));
+            accCakePerShare = accCakePerShare.add(cakeReward.mul(1e18).div(pool.lpSupply));
         }
         return user.amount.mul(accCakePerShare).div(1e18).sub(user.rewardDebt);
     }
@@ -171,8 +173,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         if (block.number <= pool.lastRewardBlock) {
             return;
         }
-        uint256 lpSupply = pool.lpToken.balanceOf(address(this));
-        if (lpSupply == 0 || pool.allocPoint == 0) {
+        if (pool.lpSupply == 0 || pool.allocPoint == 0) {
             pool.lastRewardBlock = block.number;
             return;
         }
@@ -180,7 +181,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         uint256 cakeReward = multiplier.mul(cakePerBlock).mul(pool.allocPoint).div(totalAllocPoint);
         // minting is itegrated in token on https://github.com/polykiwi-finance/polykiwi-token
         cake.mint(address(this), cakeReward);
-        pool.accCakePerShare = pool.accCakePerShare.add(cakeReward.mul(1e18).div(lpSupply));
+        pool.accCakePerShare = pool.accCakePerShare.add(cakeReward.mul(1e18).div(pool.lpSupply));
         pool.lastRewardBlock = block.number;
     }
 
@@ -209,8 +210,10 @@ contract MasterChef is Ownable, ReentrancyGuard {
                 uint256 depositFee = _amount.mul(pool.depositFeeBP).div(10000);
                 pool.lpToken.safeTransfer(feeAddress, depositFee);
                 user.amount = user.amount.add(_amount).sub(depositFee);
+                pool.lpSupply = pool.lpSupply.add(_amount).sub(depositFee);
             } else {
-                user.amount.add(_amount);
+                user.amount = user.amount.add(_amount);
+                pool.lpSupply = pool.lpSupply.add(_amount);
             }
         }
         user.rewardDebt = user.amount.mul(pool.accCakePerShare).div(1e18);
@@ -233,6 +236,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
         if(_amount > 0) {
             user.amount = user.amount.sub(_amount);
             pool.lpToken.safeTransfer(address(msg.sender), _amount);
+            pool.lpSupply = pool.lpSupply.sub(_amount);
         }
         user.rewardDebt = user.amount.mul(pool.accCakePerShare).div(1e18);
         emit Withdraw(msg.sender, _pid, _amount);
@@ -251,9 +255,13 @@ contract MasterChef is Ownable, ReentrancyGuard {
     function emergencyWithdraw(uint256 _pid) external nonReentrant {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
+
+        pool.lpToken.safeTransfer(address(msg.sender), user.amount);
+        pool.lpSupply = pool.lpSupply.sub(user.amount);
+
         user.amount = 0;
         user.rewardDebt = 0;
-        pool.lpToken.safeTransfer(address(msg.sender), user.amount);
+
         emit EmergencyWithdraw(msg.sender, _pid, user.amount);
     }
 
