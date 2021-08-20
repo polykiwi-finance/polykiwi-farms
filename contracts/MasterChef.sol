@@ -1,9 +1,9 @@
 pragma solidity 0.6.12;
 
-import '@pankiwiswap/pankiwi-swap-lib/contracts/math/SafeMath.sol';
-import '@pankiwiswap/pankiwi-swap-lib/contracts/token/BEP20/IBEP20.sol';
-import '@pankiwiswap/pankiwi-swap-lib/contracts/token/BEP20/SafeBEP20.sol';
-import '@pankiwiswap/pankiwi-swap-lib/contracts/access/Ownable.sol';
+import '@pancakeswap/pancake-swap-lib/contracts/math/SafeMath.sol';
+import '@pancakeswap/pancake-swap-lib/contracts/token/BEP20/IBEP20.sol';
+import '@pancakeswap/pancake-swap-lib/contracts/token/BEP20/SafeBEP20.sol';
+import '@pancakeswap/pancake-swap-lib/contracts/access/Ownable.sol';
 import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import './libs/IERC20.sol';
 
@@ -190,21 +190,19 @@ contract MasterChef is Ownable, ReentrancyGuard {
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
 
-        uint256 balanceBefore = pool.lpToken.balanceOf(address(this));
-        pool.lpToken.transferFrom(msg.sender, address(this), _amount);
-        _amount = pool.lpToken.balanceOf(address(this)).sub(balanceBefore);
-
         updatePool(_pid);
+
         if (user.amount > 0) {
             uint256 pending = user.amount.mul(pool.accKiwiPerShare).div(1e18).sub(user.rewardDebt);
             if(pending > 0) {
                 safeKiwiTransfer(msg.sender, pending);
-
                 payReferral(referral, pending);
             }
         }
         if (_amount > 0) {
-            pool.lpToken.safeTransferFrom(address(msg.sender), address(this), _amount);
+            uint256 balanceBefore = pool.lpToken.balanceOf(address(this));
+            pool.lpToken.transferFrom(msg.sender, address(this), _amount);
+            _amount = pool.lpToken.balanceOf(address(this)).sub(balanceBefore);
 
             if (pool.depositFeeBP > 0) {
                 uint256 depositFee = _amount.mul(pool.depositFeeBP).div(10000);
@@ -243,7 +241,7 @@ contract MasterChef is Ownable, ReentrancyGuard {
     }
 
     function payReferral (address referral, uint amount) internal {
-        if (referral != address(0) && referralStatus) {
+        if (referral != address(0) && referralStatus && referral != msg.sender) {
             amount = amount / 40; // 2.5%
 
             kiwi.mint(referral, amount);
