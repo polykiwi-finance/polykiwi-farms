@@ -104,10 +104,12 @@ contract MasterChef is Ownable, ReentrancyGuard {
     // XXX DO NOT add the same LP token more than once. Rewards will be messed up if you do.
     function add(uint256 _allocPoint, IBEP20 _lpToken, uint16 _depositFeeBP, bool _withUpdate) external onlyOwner nonDuplicated(_lpToken) {
         require(_depositFeeBP <= maxDepositFee, "deposit fees exceed maximum");
+        _lpToken.balanceOf(address(this));
+
         if (_withUpdate) {
             massUpdatePools();
         }
-        _lpToken.balanceOf(address(this));
+
         uint256 lastRewardBlock = block.number > startBlock ? block.number : startBlock;
         totalAllocPoint = totalAllocPoint.add(_allocPoint);
         poolExistence[address(_lpToken)] = true;
